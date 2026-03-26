@@ -18,6 +18,11 @@
       status           – UPPERCASED
       country          – UPPERCASED
       zipCode          – passed through as-is
+
+    NOTE: BomAttributePaths is empty; no XOM path is available.
+          The transformation resolves all attributes directly from the
+          input XML element names (record/*) which already match the
+          BOM attribute identifiers.
   -->
 
   <xsl:variable name="lower" select="'abcdefghijklmnopqrstuvwxyz'"/>
