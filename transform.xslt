@@ -3,92 +3,140 @@
   <xsl:output method="xml" indent="yes" encoding="UTF-8"/>
 
   <!--
-    Input fields (10):
-      firstName, lastName, email, phone (10 digits), birthYear,
-      salary, department, status, country, zipCode
+    ============================================================
+    Insurance BOM-to-XOM Path Transformation  (XSLT 1.0)
+    ============================================================
+    Converts 10 insurance BOM (Business Object Model) field paths
+    to their corresponding XOM (Execution Object Model) Java paths.
 
-    Output fields (10):
-      fullName         – UPPERCASED "firstName lastName"
-      emailDomain      – domain portion extracted from email
-      maskedEmail      – first 2 chars + *** + @ + domain
-      formattedPhone   – (XXX) XXX-XXXX
-      age              – 2026 minus birthYear
-      formattedSalary  – $#,##0.00
-      department       – UPPERCASED
-      status           – UPPERCASED
-      country          – UPPERCASED
-      zipCode          – passed through as-is
+    BOM paths use dot-notation business names understood by analysts.
+    XOM paths are the fully-qualified Java class/attribute paths used
+    at rule execution time by IBM ODM (or equivalent engines).
+
+    ┌─────────────────────────────────┬────────────────────────────────────────────────────┬──────────────────────────────┐
+    │ BOM Path                        │ XOM Path                                           │ Transformation               │
+    ├─────────────────────────────────┼────────────────────────────────────────────────────┼──────────────────────────────┤
+    │ policy.policyNumber             │ com.insurance.xom.Policy/policyNumber              │ pass-through                 │
+    │ policy.holder.name              │ com.insurance.xom.PolicyHolder/holderName          │ UPPERCASED                   │
+    │ policy.holder.dateOfBirth       │ com.insurance.xom.PolicyHolder/dateOfBirth         │ pass-through (YYYY-MM-DD)    │
+    │ policy.coverage.type            │ com.insurance.xom.Coverage/coverageType            │ UPPERCASED                   │
+    │ policy.coverage.premium         │ com.insurance.xom.Coverage/premiumAmount           │ formatted as $#,##0.00       │
+    │ policy.coverage.deductible      │ com.insurance.xom.Coverage/deductibleAmount        │ formatted as $#,##0.00       │
+    │ policy.coverage.startDate       │ com.insurance.xom.Coverage/effectiveDate           │ pass-through (YYYY-MM-DD)    │
+    │ policy.coverage.endDate         │ com.insurance.xom.Coverage/terminationDate         │ pass-through (YYYY-MM-DD)    │
+    │ policy.risk.score               │ com.insurance.xom.RiskAssessment/riskScore         │ numeric pass-through         │
+    │ policy.claim.status             │ com.insurance.xom.Claim/claimStatus                │ UPPERCASED                   │
+    └─────────────────────────────────┴────────────────────────────────────────────────────┴──────────────────────────────┘
+
+    Input XML root element : <policy>
+    Output XML root element: <xomMappings>
+      Each child is a <field> element carrying:
+        @bomPath – the original BOM dot-path
+        @xomPath – the resolved XOM Java path
+        text()   – the (optionally transformed) field value
   -->
 
+  <!-- Case-conversion alphabet strings (XSLT 1.0 compatible) -->
   <xsl:variable name="lower" select="'abcdefghijklmnopqrstuvwxyz'"/>
   <xsl:variable name="upper" select="'ABCDEFGHIJKLMNOPQRSTUVWXYZ'"/>
 
-  <xsl:template match="/record">
-    <result>
+  <!-- ============================================================
+       Main template – matches the <policy> root element
+       ============================================================ -->
+  <xsl:template match="/policy">
+    <xomMappings>
 
-      <!-- 1. fullName: UPPERCASE firstName + space + UPPERCASE lastName -->
-      <fullName>
-        <xsl:value-of select="concat(
-          translate(firstName, $lower, $upper),
-          ' ',
-          translate(lastName,  $lower, $upper)
-        )"/>
-      </fullName>
+      <!-- ── 1. BOM: policy.policyNumber
+                 XOM: com.insurance.xom.Policy/policyNumber
+                 Rule: pass-through – unique alphanumeric policy ID          -->
+      <field
+        bomPath="policy.policyNumber"
+        xomPath="com.insurance.xom.Policy/policyNumber">
+        <xsl:value-of select="policyNumber"/>
+      </field>
 
-      <!-- 2. emailDomain: everything after the @ -->
-      <emailDomain>
-        <xsl:value-of select="substring-after(email, '@')"/>
-      </emailDomain>
+      <!-- ── 2. BOM: policy.holder.name
+                 XOM: com.insurance.xom.PolicyHolder/holderName
+                 Rule: UPPERCASED for canonical storage                       -->
+      <field
+        bomPath="policy.holder.name"
+        xomPath="com.insurance.xom.PolicyHolder/holderName">
+        <xsl:value-of select="translate(holderName, $lower, $upper)"/>
+      </field>
 
-      <!-- 3. maskedEmail: first 2 chars + *** + @ + domain -->
-      <maskedEmail>
-        <xsl:value-of select="concat(
-          substring(email, 1, 2),
-          '***@',
-          substring-after(email, '@')
-        )"/>
-      </maskedEmail>
+      <!-- ── 3. BOM: policy.holder.dateOfBirth
+                 XOM: com.insurance.xom.PolicyHolder/dateOfBirth
+                 Rule: pass-through (ISO 8601: YYYY-MM-DD)                   -->
+      <field
+        bomPath="policy.holder.dateOfBirth"
+        xomPath="com.insurance.xom.PolicyHolder/dateOfBirth">
+        <xsl:value-of select="dateOfBirth"/>
+      </field>
 
-      <!-- 4. formattedPhone: (XXX) XXX-XXXX (expects 10-digit string) -->
-      <formattedPhone>
-        <xsl:value-of select="concat(
-          '(', substring(phone, 1, 3), ') ',
-          substring(phone, 4, 3), '-',
-          substring(phone, 7)
-        )"/>
-      </formattedPhone>
+      <!-- ── 4. BOM: policy.coverage.type
+                 XOM: com.insurance.xom.Coverage/coverageType
+                 Rule: UPPERCASED (e.g. auto → AUTO, home → HOME)            -->
+      <field
+        bomPath="policy.coverage.type"
+        xomPath="com.insurance.xom.Coverage/coverageType">
+        <xsl:value-of select="translate(coverageType, $lower, $upper)"/>
+      </field>
 
-      <!-- 5. age: current year (2026) minus birthYear -->
-      <age>
-        <xsl:value-of select="2026 - number(birthYear)"/>
-      </age>
+      <!-- ── 5. BOM: policy.coverage.premium
+                 XOM: com.insurance.xom.Coverage/premiumAmount
+                 Rule: formatted as $#,##0.00  (e.g. 1250 → $1,250.00)      -->
+      <field
+        bomPath="policy.coverage.premium"
+        xomPath="com.insurance.xom.Coverage/premiumAmount">
+        <xsl:value-of select="concat('$', format-number(number(premiumAmount), '#,##0.00'))"/>
+      </field>
 
-      <!-- 6. formattedSalary: $#,##0.00 -->
-      <formattedSalary>
-        <xsl:value-of select="concat('$', format-number(number(salary), '#,##0.00'))"/>
-      </formattedSalary>
+      <!-- ── 6. BOM: policy.coverage.deductible
+                 XOM: com.insurance.xom.Coverage/deductibleAmount
+                 Rule: formatted as $#,##0.00  (e.g. 500 → $500.00)         -->
+      <field
+        bomPath="policy.coverage.deductible"
+        xomPath="com.insurance.xom.Coverage/deductibleAmount">
+        <xsl:value-of select="concat('$', format-number(number(deductibleAmount), '#,##0.00'))"/>
+      </field>
 
-      <!-- 7. department: UPPERCASED -->
-      <department>
-        <xsl:value-of select="translate(department, $lower, $upper)"/>
-      </department>
+      <!-- ── 7. BOM: policy.coverage.startDate
+                 XOM: com.insurance.xom.Coverage/effectiveDate
+                 Rule: BOM "startDate" maps to XOM "effectiveDate"; pass-through -->
+      <field
+        bomPath="policy.coverage.startDate"
+        xomPath="com.insurance.xom.Coverage/effectiveDate">
+        <xsl:value-of select="coverageStartDate"/>
+      </field>
 
-      <!-- 8. status: UPPERCASED -->
-      <status>
-        <xsl:value-of select="translate(status, $lower, $upper)"/>
-      </status>
+      <!-- ── 8. BOM: policy.coverage.endDate
+                 XOM: com.insurance.xom.Coverage/terminationDate
+                 Rule: BOM "endDate" maps to XOM "terminationDate"; pass-through -->
+      <field
+        bomPath="policy.coverage.endDate"
+        xomPath="com.insurance.xom.Coverage/terminationDate">
+        <xsl:value-of select="coverageEndDate"/>
+      </field>
 
-      <!-- 9. country: UPPERCASED -->
-      <country>
-        <xsl:value-of select="translate(country, $lower, $upper)"/>
-      </country>
+      <!-- ── 9. BOM: policy.risk.score
+                 XOM: com.insurance.xom.RiskAssessment/riskScore
+                 Rule: numeric pass-through (integer 0-100)                  -->
+      <field
+        bomPath="policy.risk.score"
+        xomPath="com.insurance.xom.RiskAssessment/riskScore">
+        <xsl:value-of select="number(riskScore)"/>
+      </field>
 
-      <!-- 10. zipCode: passed through unchanged -->
-      <zipCode>
-        <xsl:value-of select="zipCode"/>
-      </zipCode>
+      <!-- ── 10. BOM: policy.claim.status
+                  XOM: com.insurance.xom.Claim/claimStatus
+                  Rule: UPPERCASED (e.g. pending → PENDING)                  -->
+      <field
+        bomPath="policy.claim.status"
+        xomPath="com.insurance.xom.Claim/claimStatus">
+        <xsl:value-of select="translate(claimStatus, $lower, $upper)"/>
+      </field>
 
-    </result>
+    </xomMappings>
   </xsl:template>
 
 </xsl:stylesheet>
