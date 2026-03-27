@@ -26,31 +26,84 @@ const xsltDoc = xmlParse(fs.readFileSync(XSLT_PATH, 'utf-8'));
 console.log(`XSLT loaded from: ${XSLT_PATH}`);
 
 // ---------------------------------------------------------------------------
+// BOM Attribute Paths
+// ---------------------------------------------------------------------------
+
+/**
+ * BomAttributePaths supplied for this rule.
+ * When BomAttributePaths are provided they are used to resolve attribute
+ * values from the input payload instead of relying on an XOM path.
+ *
+ * Currently the BomAttributePaths list is empty, so the transformation
+ * falls back to direct field access from the request body.  If paths are
+ * added in the future they will be picked up automatically.
+ */
+const BOM_ATTRIBUTE_PATHS: string[] = [];
+
+/**
+ * Resolve a value from the request body using a BOM attribute path.
+ * Supports dot-separated paths (e.g. "record.firstName").
+ * Falls back to a top-level key lookup when no matching BOM path exists.
+ */
+function resolveAttribute(body: Record<string, any>, fieldName: string): string {
+  // First, try to find a matching BOM attribute path
+  const bomPath = BOM_ATTRIBUTE_PATHS.find((p) => {
+    const segments = p.split('.');
+    return segments[segments.length - 1] === fieldName;
+  });
+
+  if (bomPath) {
+    const segments = bomPath.split('.');
+    let current: any = body;
+    for (const segment of segments) {
+      if (current == null || typeof current !== 'object') return '';
+      current = current[segment];
+    }
+    return current != null ? String(current) : '';
+  }
+
+  // Fallback: direct field access from the body
+  return body[fieldName] != null ? String(body[fieldName]) : '';
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
 /**
  * Build the input XML document from the 10 expected JSON fields.
+ * Attribute values are resolved through BomAttributePaths when available.
  */
-function buildInputXml(body: Record<string, string>): string {
+function buildInputXml(body: Record<string, any>): string {
   const esc = (v: string) =>
     String(v)
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;');
 
+  const firstName   = esc(resolveAttribute(body, 'firstName'));
+  const lastName    = esc(resolveAttribute(body, 'lastName'));
+  const email       = esc(resolveAttribute(body, 'email'));
+  const phone       = esc(resolveAttribute(body, 'phone'));
+  const birthYear   = esc(resolveAttribute(body, 'birthYear'));
+  const salary      = esc(resolveAttribute(body, 'salary'));
+  const department  = esc(resolveAttribute(body, 'department'));
+  const status      = esc(resolveAttribute(body, 'status'));
+  const country     = esc(resolveAttribute(body, 'country'));
+  const zipCode     = esc(resolveAttribute(body, 'zipCode'));
+
   return `<?xml version="1.0" encoding="UTF-8"?>
 <record>
-  <firstName>${esc(body.firstName)}</firstName>
-  <lastName>${esc(body.lastName)}</lastName>
-  <email>${esc(body.email)}</email>
-  <phone>${esc(body.phone)}</phone>
-  <birthYear>${esc(body.birthYear)}</birthYear>
-  <salary>${esc(body.salary)}</salary>
-  <department>${esc(body.department)}</department>
-  <status>${esc(body.status)}</status>
-  <country>${esc(body.country)}</country>
-  <zipCode>${esc(body.zipCode)}</zipCode>
+  <firstName>${firstName}</firstName>
+  <lastName>${lastName}</lastName>
+  <email>${email}</email>
+  <phone>${phone}</phone>
+  <birthYear>${birthYear}</birthYear>
+  <salary>${salary}</salary>
+  <department>${department}</department>
+  <status>${status}</status>
+  <country>${country}</country>
+  <zipCode>${zipCode}</zipCode>
 </record>`;
 }
 
@@ -109,8 +162,12 @@ app.post('/transform', (req: Request, res: Response) => {
     'zipCode',
   ] as const;
 
-  // Validate that all 10 input fields are present
-  const missing = REQUIRED.filter((f) => req.body[f] === undefined);
+  // Validate that all 10 input fields are present.
+  // When BOM attribute paths are configured, resolve through them.
+  const missing = REQUIRED.filter((f) => {
+    const val = resolveAttribute(req.body, f);
+    return val === undefined || val === '';
+  });
   if (missing.length > 0) {
     res.status(400).json({
       error: 'Missing required fields',

@@ -18,6 +18,11 @@
       status           – UPPERCASED
       country          – UPPERCASED
       zipCode          – passed through as-is
+
+    NOTE: XOM path is NOT available for this rule.
+    Attribute resolution is driven by BomAttributePaths in the
+    server-side transformation code (src/index.ts).  The XSLT
+    operates on the XML document built from those resolved values.
   -->
 
   <xsl:variable name="lower" select="'abcdefghijklmnopqrstuvwxyz'"/>
