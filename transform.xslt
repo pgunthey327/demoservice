@@ -6,7 +6,7 @@
     ============================================================
     Insurance BOM-to-XOM Path Transformation  (XSLT 1.0)
     ============================================================
-    Converts 10 insurance BOM (Business Object Model) field paths
+    Converts insurance BOM (Business Object Model) field paths
     to their corresponding XOM (Execution Object Model) Java paths.
 
     BOM paths use dot-notation business names understood by analysts.
@@ -26,6 +26,7 @@
     │ policy.coverage.endDate         │ com.insurance.xom.Coverage/terminationDate         │ pass-through (YYYY-MM-DD)    │
     │ policy.risk.score               │ com.insurance.xom.RiskAssessment/riskScore         │ numeric pass-through         │
     │ policy.claim.status             │ com.insurance.xom.Claim/claimStatus                │ UPPERCASED                   │
+    │ /policy/premiumAmount/value     │ /policy/premiumAmount/value                        │ formatted as $#,##0.00       │
     └─────────────────────────────────┴────────────────────────────────────────────────────┴──────────────────────────────┘
 
     Input XML root element : <policy>
@@ -134,6 +135,15 @@
         bomPath="policy.claim.status"
         xomPath="com.insurance.xom.Claim/claimStatus">
         <xsl:value-of select="translate(claimStatus, $lower, $upper)"/>
+      </field>
+
+      <!-- ── 11. SCBP BOM: /policy/premiumAmount/value
+                  SCBP XOM: /policy/premiumAmount/value
+                  Rule: formatted as $#,##0.00  (e.g. 1250 → $1,250.00)     -->
+      <field
+        bomPath="/policy/premiumAmount/value"
+        xomPath="/policy/premiumAmount/value">
+        <xsl:value-of select="concat('$', format-number(number(premiumAmountValue), '#,##0.00'))"/>
       </field>
 
     </xomMappings>
