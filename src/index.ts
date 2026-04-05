@@ -71,19 +71,45 @@ interface TransformResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+/** All required BOM input field names, declared once and reused. */
+const REQUIRED_FIELDS: ReadonlyArray<keyof InsuranceBomInput> = [
+  'policyNumber',
+  'holderName',
+  'dateOfBirth',
+  'coverageType',
+  'premiumAmount',
+  'deductibleAmount',
+  'coverageStartDate',
+  'coverageEndDate',
+  'riskScore',
+  'claimStatus',
+] as const;
+
+/** Regex to extract <field bomPath="…" xomPath="…">value</field> elements. */
+const FIELD_PATTERN =
+  /<field\s+bomPath="([^"]+)"\s+xomPath="([^"]+)">([^<]*)<\/field>/g;
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+/** XML special-character escape map. */
+const XML_ESCAPE_MAP: Record<string, string> = {
+  '&': '&amp;',
+  '<': '&lt;',
+  '>': '&gt;',
+  '"': '&quot;',
+  "'": '&apos;',
+};
 
 /**
  * Escape special XML characters in a string value.
  */
 function escXml(v: unknown): string {
-  return String(v ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
+  return String(v ?? '').replace(/[&<>"']/g, (ch) => XML_ESCAPE_MAP[ch]);
 }
 
 /**
@@ -113,12 +139,13 @@ function buildInputXml(body: InsuranceBomInput): string {
  * the XSLT output XML and return them as a typed array.
  */
 function extractXomFields(xml: string): XomField[] {
-  const fieldPattern =
-    /<field\s+bomPath="([^"]+)"\s+xomPath="([^"]+)">([^<]*)<\/field>/g;
   const fields: XomField[] = [];
   let match: RegExpExecArray | null;
 
-  while ((match = fieldPattern.exec(xml)) !== null) {
+  // Reset lastIndex in case the shared regex was used before
+  FIELD_PATTERN.lastIndex = 0;
+
+  while ((match = FIELD_PATTERN.exec(xml)) !== null) {
     fields.push({
       bomPath: match[1].trim(),
       xomPath: match[2].trim(),
@@ -172,26 +199,13 @@ app.use(express.json());
  * }
  */
 app.post('/transform', (req: Request, res: Response) => {
-  const REQUIRED: Array<keyof InsuranceBomInput> = [
-    'policyNumber',
-    'holderName',
-    'dateOfBirth',
-    'coverageType',
-    'premiumAmount',
-    'deductibleAmount',
-    'coverageStartDate',
-    'coverageEndDate',
-    'riskScore',
-    'claimStatus',
-  ];
-
   // Validate that all 10 BOM input fields are present
-  const missing = REQUIRED.filter((f) => req.body[f] === undefined || req.body[f] === null);
+  const missing = REQUIRED_FIELDS.filter((f) => req.body[f] == null);
   if (missing.length > 0) {
     res.status(400).json({
       error: 'Missing required insurance BOM fields',
       missing,
-      hint: 'Supply all 10 fields: ' + REQUIRED.join(', '),
+      hint: 'Supply all 10 fields: ' + REQUIRED_FIELDS.join(', '),
     });
     return;
   }

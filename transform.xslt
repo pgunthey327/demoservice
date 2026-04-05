@@ -47,99 +47,77 @@
   <xsl:template match="/policy">
     <xomMappings>
 
-      <!-- ── 1. BOM: policy.policyNumber
-                 XOM: com.insurance.xom.Policy/policyNumber
-                 Rule: pass-through – unique alphanumeric policy ID          -->
+      <!-- 1. policy.policyNumber → pass-through -->
       <field
         bomPath="policy.policyNumber"
         xomPath="com.insurance.xom.Policy/policyNumber">
         <xsl:value-of select="policyNumber"/>
       </field>
 
-      <!-- ── 2. BOM: policy.holder.name
-                 XOM: com.insurance.xom.PolicyHolder/holderName
-                 Rule: UPPERCASED for canonical storage                       -->
+      <!-- 2. policy.holder.name → UPPERCASED -->
       <field
         bomPath="policy.holder.name"
         xomPath="com.insurance.xom.PolicyHolder/holderName">
         <xsl:value-of select="translate(holderName, $lower, $upper)"/>
       </field>
 
-      <!-- ── 3. BOM: policy.holder.dateOfBirth
-                 XOM: com.insurance.xom.PolicyHolder/dateOfBirth
-                 Rule: pass-through (ISO 8601: YYYY-MM-DD)                   -->
+      <!-- 3. policy.holder.dateOfBirth → pass-through (ISO 8601) -->
       <field
         bomPath="policy.holder.dateOfBirth"
         xomPath="com.insurance.xom.PolicyHolder/dateOfBirth">
         <xsl:value-of select="dateOfBirth"/>
       </field>
 
-      <!-- ── 4. BOM: policy.coverage.type
-                 XOM: com.insurance.xom.Coverage/coverageType
-                 Rule: UPPERCASED (e.g. auto → AUTO, home → HOME)            -->
+      <!-- 4. policy.coverage.type → UPPERCASED -->
       <field
         bomPath="policy.coverage.type"
         xomPath="com.insurance.xom.Coverage/coverageType">
         <xsl:value-of select="translate(coverageType, $lower, $upper)"/>
       </field>
 
-      <!-- ── 5. BOM: policy.coverage.premium
-                 XOM: com.insurance.xom.Coverage/premiumAmount
-                 Rule: formatted as $#,##0.00  (e.g. 1250 → $1,250.00)      -->
+      <!-- 5. policy.coverage.premium → formatted as $#,##0.00 -->
       <field
         bomPath="policy.coverage.premium"
         xomPath="com.insurance.xom.Coverage/premiumAmount">
         <xsl:value-of select="concat('$', format-number(number(premiumAmount), '#,##0.00'))"/>
       </field>
 
-      <!-- ── 6. BOM: policy.coverage.deductible
-                 XOM: com.insurance.xom.Coverage/deductibleAmount
-                 Rule: formatted as $#,##0.00  (e.g. 500 → $500.00)         -->
+      <!-- 6. policy.coverage.deductible → formatted as $#,##0.00 -->
       <field
         bomPath="policy.coverage.deductible"
         xomPath="com.insurance.xom.Coverage/deductibleAmount">
         <xsl:value-of select="concat('$', format-number(number(deductibleAmount), '#,##0.00'))"/>
       </field>
 
-      <!-- ── 7. BOM: policy.coverage.startDate
-                 XOM: com.insurance.xom.Coverage/effectiveDate
-                 Rule: BOM "startDate" maps to XOM "effectiveDate"; pass-through -->
+      <!-- 7. policy.coverage.startDate → effectiveDate pass-through -->
       <field
         bomPath="policy.coverage.startDate"
         xomPath="com.insurance.xom.Coverage/effectiveDate">
         <xsl:value-of select="coverageStartDate"/>
       </field>
 
-      <!-- ── 8. BOM: policy.coverage.endDate
-                 XOM: com.insurance.xom.Coverage/terminationDate
-                 Rule: BOM "endDate" maps to XOM "terminationDate"; pass-through -->
+      <!-- 8. policy.coverage.endDate → terminationDate pass-through -->
       <field
         bomPath="policy.coverage.endDate"
         xomPath="com.insurance.xom.Coverage/terminationDate">
         <xsl:value-of select="coverageEndDate"/>
       </field>
 
-      <!-- ── 9. BOM: policy.risk.score
-                 XOM: com.insurance.xom.RiskAssessment/riskScore
-                 Rule: numeric pass-through (integer 0-100)                  -->
+      <!-- 9. policy.risk.score → numeric pass-through (0-100) -->
       <field
         bomPath="policy.risk.score"
         xomPath="com.insurance.xom.RiskAssessment/riskScore">
         <xsl:value-of select="number(riskScore)"/>
       </field>
 
-      <!-- ── 10. BOM: policy.claim.status
-                  XOM: com.insurance.xom.Claim/claimStatus
-                  Rule: UPPERCASED (e.g. pending → PENDING)                  -->
+      <!-- 10. policy.claim.status → UPPERCASED -->
       <field
         bomPath="policy.claim.status"
         xomPath="com.insurance.xom.Claim/claimStatus">
         <xsl:value-of select="translate(claimStatus, $lower, $upper)"/>
       </field>
 
-      <!-- ── 11. SCBP BOM: /policy/premiumAmount/value
-                  SCBP XOM: /policy/premiumAmount/value
-                  Rule: formatted as $#,##0.00 (same transform as premiumAmount) -->
+      <!-- 11. SCBP /policy/premiumAmount/value → formatted as $#,##0.00 -->
       <field
         bomPath="/policy/premiumAmount/value"
         xomPath="/policy/premiumAmount/value">
