@@ -30,20 +30,21 @@ console.log(`XSLT loaded from: ${XSLT_PATH}`);
 // ---------------------------------------------------------------------------
 
 /**
- * The 10 insurance input fields (BOM paths expressed as flat JSON keys).
+ * The 11 insurance input fields (BOM paths expressed as flat JSON keys).
  *
- * BOM Path                  → JSON key
- * ─────────────────────────────────────
- * policy.policyNumber       → policyNumber
- * policy.holder.name        → holderName
- * policy.holder.dateOfBirth → dateOfBirth
- * policy.coverage.type      → coverageType
- * policy.coverage.premium   → premiumAmount
- * policy.coverage.deductible→ deductibleAmount
- * policy.coverage.startDate → coverageStartDate
- * policy.coverage.endDate   → coverageEndDate
- * policy.risk.score         → riskScore
- * policy.claim.status       → claimStatus
+ * BOM Path                        → JSON key
+ * ──────────────────────────────────────────────
+ * policy.policyNumber             → policyNumber
+ * policy.holder.name              → holderName
+ * policy.holder.dateOfBirth       → dateOfBirth
+ * policy.coverage.type            → coverageType
+ * policy.coverage.premium         → premiumAmount
+ * policy.coverage.deductible      → deductibleAmount
+ * policy.coverage.startDate       → coverageStartDate
+ * policy.coverage.endDate         → coverageEndDate
+ * policy.risk.score               → riskScore
+ * policy.claim.status             → claimStatus
+ * /policy/premiumAmount/value     → premiumAmountValue
  */
 interface InsuranceBomInput {
   policyNumber: string;       // e.g. "POL-2024-001234"
@@ -72,12 +73,27 @@ interface TransformResponse {
 }
 
 // ---------------------------------------------------------------------------
+// Required BOM fields (defined once, reused for validation)
+// ---------------------------------------------------------------------------
+const REQUIRED_FIELDS: ReadonlyArray<keyof InsuranceBomInput> = [
+  'policyNumber',
+  'holderName',
+  'dateOfBirth',
+  'coverageType',
+  'premiumAmount',
+  'deductibleAmount',
+  'coverageStartDate',
+  'coverageEndDate',
+  'riskScore',
+  'claimStatus',
+  'premiumAmountValue',
+];
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Escape special XML characters in a string value.
- */
+/** Escape special XML characters in a string value. */
 function escXml(v: unknown): string {
   return String(v ?? '')
     .replace(/&/g, '&amp;')
@@ -90,37 +106,37 @@ function escXml(v: unknown): string {
 /**
  * Build the input XML <policy> document from the BOM JSON fields.
  *
- * The element names here are the flat JSON keys; the XSLT maps them to
+ * Element names mirror the flat JSON keys; the XSLT maps them to
  * fully-qualified XOM paths in the output.
  */
 function buildInputXml(body: InsuranceBomInput): string {
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<policy>
-  <policyNumber>${escXml(body.policyNumber)}</policyNumber>
-  <holderName>${escXml(body.holderName)}</holderName>
-  <dateOfBirth>${escXml(body.dateOfBirth)}</dateOfBirth>
-  <coverageType>${escXml(body.coverageType)}</coverageType>
-  <premiumAmount>${escXml(body.premiumAmount)}</premiumAmount>
-  <deductibleAmount>${escXml(body.deductibleAmount)}</deductibleAmount>
-  <coverageStartDate>${escXml(body.coverageStartDate)}</coverageStartDate>
-  <coverageEndDate>${escXml(body.coverageEndDate)}</coverageEndDate>
-  <riskScore>${escXml(body.riskScore)}</riskScore>
-  <claimStatus>${escXml(body.claimStatus)}</claimStatus>
-  <premiumAmountValue>${escXml(body.premiumAmountValue)}</premiumAmountValue>
-</policy>`;
+  const tag = (name: keyof InsuranceBomInput) =>
+    `  <${name}>${escXml(body[name])}</${name}>`;
+
+  return [
+    '<?xml version="1.0" encoding="UTF-8"?>',
+    '<policy>',
+    ...REQUIRED_FIELDS.map(tag),
+    '</policy>',
+  ].join('\n');
 }
 
+/** Regex for extracting <field bomPath="…" xomPath="…">value</field> elements. */
+const FIELD_PATTERN =
+  /<field\s+bomPath="([^"]+)"\s+xomPath="([^"]+)">([^<]*)<\/field>/g;
+
 /**
- * Parse every <field bomPath="…" xomPath="…">value</field> element from
- * the XSLT output XML and return them as a typed array.
+ * Parse every <field> element from the XSLT output XML and return them
+ * as a typed array.
  */
 function extractXomFields(xml: string): XomField[] {
-  const fieldPattern =
-    /<field\s+bomPath="([^"]+)"\s+xomPath="([^"]+)">([^<]*)<\/field>/g;
   const fields: XomField[] = [];
   let match: RegExpExecArray | null;
 
-  while ((match = fieldPattern.exec(xml)) !== null) {
+  // Reset lastIndex in case the shared regex was used before
+  FIELD_PATTERN.lastIndex = 0;
+
+  while ((match = FIELD_PATTERN.exec(xml)) !== null) {
     fields.push({
       bomPath: match[1].trim(),
       xomPath: match[2].trim(),
@@ -144,58 +160,44 @@ app.use(express.json());
  *
  * ── Request body example ──────────────────────────────────────────────────
  * {
- *   "policyNumber":    "POL-2024-001234",
- *   "holderName":      "Jane Doe",
- *   "dateOfBirth":     "1985-06-15",
- *   "coverageType":    "auto",
- *   "premiumAmount":   "1250.00",
- *   "deductibleAmount":"500.00",
- *   "coverageStartDate":"2024-01-01",
- *   "coverageEndDate": "2024-12-31",
- *   "riskScore":       "72",
- *   "claimStatus":     "pending",
- *   "premiumAmountValue": "1250.00"
+ *   "policyNumber":      "POL-2024-001234",
+ *   "holderName":        "Jane Doe",
+ *   "dateOfBirth":       "1985-06-15",
+ *   "coverageType":      "auto",
+ *   "premiumAmount":     "1250.00",
+ *   "deductibleAmount":  "500.00",
+ *   "coverageStartDate": "2024-01-01",
+ *   "coverageEndDate":   "2024-12-31",
+ *   "riskScore":         "72",
+ *   "claimStatus":       "pending",
+ *   "premiumAmountValue":"1250.00"
  * }
  *
  * ── Response body example ────────────────────────────────────────────────
  * {
  *   "fields": [
- *     { "bomPath": "policy.policyNumber",       "xomPath": "com.insurance.xom.Policy/policyNumber",             "value": "POL-2024-001234" },
- *     { "bomPath": "policy.holder.name",        "xomPath": "com.insurance.xom.PolicyHolder/holderName",         "value": "JANE DOE"        },
- *     { "bomPath": "policy.holder.dateOfBirth", "xomPath": "com.insurance.xom.PolicyHolder/dateOfBirth",        "value": "1985-06-15"      },
- *     { "bomPath": "policy.coverage.type",      "xomPath": "com.insurance.xom.Coverage/coverageType",           "value": "AUTO"            },
- *     { "bomPath": "policy.coverage.premium",   "xomPath": "com.insurance.xom.Coverage/premiumAmount",          "value": "$1,250.00"       },
- *     { "bomPath": "policy.coverage.deductible","xomPath": "com.insurance.xom.Coverage/deductibleAmount",       "value": "$500.00"         },
- *     { "bomPath": "policy.coverage.startDate", "xomPath": "com.insurance.xom.Coverage/effectiveDate",          "value": "2024-01-01"      },
- *     { "bomPath": "policy.coverage.endDate",   "xomPath": "com.insurance.xom.Coverage/terminationDate",        "value": "2024-12-31"      },
- *     { "bomPath": "policy.risk.score",         "xomPath": "com.insurance.xom.RiskAssessment/riskScore",        "value": "72"              },
- *     { "bomPath": "policy.claim.status",       "xomPath": "com.insurance.xom.Claim/claimStatus",               "value": "PENDING"         },
- *     { "bomPath": "/policy/premiumAmount/value","xomPath": "/policy/premiumAmount/value",                      "value": "$1,250.00"       }
+ *     { "bomPath": "policy.policyNumber",        "xomPath": "com.insurance.xom.Policy/policyNumber",        "value": "POL-2024-001234" },
+ *     { "bomPath": "policy.holder.name",          "xomPath": "com.insurance.xom.PolicyHolder/holderName",    "value": "JANE DOE"        },
+ *     { "bomPath": "policy.holder.dateOfBirth",   "xomPath": "com.insurance.xom.PolicyHolder/dateOfBirth",   "value": "1985-06-15"      },
+ *     { "bomPath": "policy.coverage.type",        "xomPath": "com.insurance.xom.Coverage/coverageType",      "value": "AUTO"            },
+ *     { "bomPath": "policy.coverage.premium",     "xomPath": "com.insurance.xom.Coverage/premiumAmount",     "value": "$1,250.00"       },
+ *     { "bomPath": "policy.coverage.deductible",  "xomPath": "com.insurance.xom.Coverage/deductibleAmount",  "value": "$500.00"         },
+ *     { "bomPath": "policy.coverage.startDate",   "xomPath": "com.insurance.xom.Coverage/effectiveDate",     "value": "2024-01-01"      },
+ *     { "bomPath": "policy.coverage.endDate",     "xomPath": "com.insurance.xom.Coverage/terminationDate",   "value": "2024-12-31"      },
+ *     { "bomPath": "policy.risk.score",           "xomPath": "com.insurance.xom.RiskAssessment/riskScore",   "value": "72"              },
+ *     { "bomPath": "policy.claim.status",         "xomPath": "com.insurance.xom.Claim/claimStatus",          "value": "PENDING"         },
+ *     { "bomPath": "/policy/premiumAmount/value", "xomPath": "/policy/premiumAmount/value",                  "value": "$1,250.00"       }
  *   ]
  * }
  */
 app.post('/transform', (req: Request, res: Response) => {
-  const REQUIRED: Array<keyof InsuranceBomInput> = [
-    'policyNumber',
-    'holderName',
-    'dateOfBirth',
-    'coverageType',
-    'premiumAmount',
-    'deductibleAmount',
-    'coverageStartDate',
-    'coverageEndDate',
-    'riskScore',
-    'claimStatus',
-    'premiumAmountValue',
-  ];
-
   // Validate that all BOM input fields are present
-  const missing = REQUIRED.filter((f) => req.body[f] === undefined || req.body[f] === null);
+  const missing = REQUIRED_FIELDS.filter((f) => req.body[f] == null);
   if (missing.length > 0) {
     res.status(400).json({
       error: 'Missing required insurance BOM fields',
       missing,
-      hint: 'Supply all fields: ' + REQUIRED.join(', '),
+      hint: 'Supply all fields: ' + REQUIRED_FIELDS.join(', '),
     });
     return;
   }
@@ -212,7 +214,7 @@ app.post('/transform', (req: Request, res: Response) => {
     const fields = extractXomFields(resultXml);
 
     if (fields.length === 0) {
-      // Transformation succeeded but produced no field elements – surface the raw XML for debugging
+      // Transformation succeeded but produced no field elements – surface raw XML for debugging
       res.status(500).json({
         error: 'XSLT produced no field mappings',
         rawOutput: resultXml,
