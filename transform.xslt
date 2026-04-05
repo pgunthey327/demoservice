@@ -6,7 +6,7 @@
     ============================================================
     Insurance BOM-to-XOM Path Transformation  (XSLT 1.0)
     ============================================================
-    Converts 10 insurance BOM (Business Object Model) field paths
+    Converts 12 insurance BOM (Business Object Model) field paths
     to their corresponding XOM (Execution Object Model) Java paths.
 
     BOM paths use dot-notation business names understood by analysts.
@@ -26,6 +26,8 @@
     │ policy.coverage.endDate         │ com.insurance.xom.Coverage/terminationDate         │ pass-through (YYYY-MM-DD)    │
     │ policy.risk.score               │ com.insurance.xom.RiskAssessment/riskScore         │ numeric pass-through         │
     │ policy.claim.status             │ com.insurance.xom.Claim/claimStatus                │ UPPERCASED                   │
+    │ policy.loanAmount.value         │ com.insurance.xom.Policy/loanAmount                │ formatted as $#,##0.00       │
+    │ policy.mortgageExpiry           │ com.insurance.xom.Policy/mortgageExpiry             │ pass-through (YYYY-MM-DD)    │
     └─────────────────────────────────┴────────────────────────────────────────────────────┴──────────────────────────────┘
 
     Input XML root element : <policy>
@@ -134,6 +136,24 @@
         bomPath="policy.claim.status"
         xomPath="com.insurance.xom.Claim/claimStatus">
         <xsl:value-of select="translate(claimStatus, $lower, $upper)"/>
+      </field>
+
+      <!-- ── 11. BOM: policy.loanAmount.value
+                  XOM: com.insurance.xom.Policy/loanAmount
+                  Rule: formatted as $#,##0.00  (e.g. 250000 → $250,000.00) -->
+      <field
+        bomPath="policy.loanAmount.value"
+        xomPath="com.insurance.xom.Policy/loanAmount">
+        <xsl:value-of select="concat('$', format-number(number(loanAmount), '#,##0.00'))"/>
+      </field>
+
+      <!-- ── 12. BOM: policy.mortgageExpiry
+                  XOM: com.insurance.xom.Policy/mortgageExpiry
+                  Rule: pass-through (ISO 8601: YYYY-MM-DD)                  -->
+      <field
+        bomPath="policy.mortgageExpiry"
+        xomPath="com.insurance.xom.Policy/mortgageExpiry">
+        <xsl:value-of select="mortgageExpiry"/>
       </field>
 
     </xomMappings>

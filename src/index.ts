@@ -30,7 +30,7 @@ console.log(`XSLT loaded from: ${XSLT_PATH}`);
 // ---------------------------------------------------------------------------
 
 /**
- * The 10 insurance input fields (BOM paths expressed as flat JSON keys).
+ * The 12 insurance input fields (BOM paths expressed as flat JSON keys).
  *
  * BOM Path                  → JSON key
  * ─────────────────────────────────────
@@ -44,6 +44,8 @@ console.log(`XSLT loaded from: ${XSLT_PATH}`);
  * policy.coverage.endDate   → coverageEndDate
  * policy.risk.score         → riskScore
  * policy.claim.status       → claimStatus
+ * policy.loanAmount.value   → loanAmount
+ * policy.mortgageExpiry     → mortgageExpiry
  */
 interface InsuranceBomInput {
   policyNumber: string;       // e.g. "POL-2024-001234"
@@ -56,6 +58,8 @@ interface InsuranceBomInput {
   coverageEndDate: string;    // e.g. "2024-12-31"
   riskScore: string;          // e.g. "72"  (0-100)
   claimStatus: string;        // e.g. "pending" | "approved" | "denied" | "closed"
+  loanAmount: string;         // e.g. "250000.00"
+  mortgageExpiry: string;     // e.g. "2030-06-30"
 }
 
 /** One entry in the XOM mapping output array. */
@@ -87,7 +91,7 @@ function escXml(v: unknown): string {
 }
 
 /**
- * Build the input XML <policy> document from the 10 BOM JSON fields.
+ * Build the input XML <policy> document from the 12 BOM JSON fields.
  *
  * The element names here are the flat JSON keys; the XSLT maps them to
  * fully-qualified XOM paths in the output.
@@ -105,6 +109,8 @@ function buildInputXml(body: InsuranceBomInput): string {
   <coverageEndDate>${escXml(body.coverageEndDate)}</coverageEndDate>
   <riskScore>${escXml(body.riskScore)}</riskScore>
   <claimStatus>${escXml(body.claimStatus)}</claimStatus>
+  <loanAmount>${escXml(body.loanAmount)}</loanAmount>
+  <mortgageExpiry>${escXml(body.mortgageExpiry)}</mortgageExpiry>
 </policy>`;
 }
 
@@ -137,7 +143,7 @@ app.use(express.json());
 /**
  * POST /transform
  *
- * Accepts a JSON body with 10 insurance BOM fields and returns a JSON array
+ * Accepts a JSON body with 12 insurance BOM fields and returns a JSON array
  * of BOM→XOM path mappings with their (optionally transformed) values.
  *
  * ── Request body example ──────────────────────────────────────────────────
@@ -151,7 +157,9 @@ app.use(express.json());
  *   "coverageStartDate":"2024-01-01",
  *   "coverageEndDate": "2024-12-31",
  *   "riskScore":       "72",
- *   "claimStatus":     "pending"
+ *   "claimStatus":     "pending",
+ *   "loanAmount":      "250000.00",
+ *   "mortgageExpiry":  "2030-06-30"
  * }
  *
  * ── Response body example ────────────────────────────────────────────────
@@ -166,7 +174,9 @@ app.use(express.json());
  *     { "bomPath": "policy.coverage.startDate", "xomPath": "com.insurance.xom.Coverage/effectiveDate",          "value": "2024-01-01"      },
  *     { "bomPath": "policy.coverage.endDate",   "xomPath": "com.insurance.xom.Coverage/terminationDate",        "value": "2024-12-31"      },
  *     { "bomPath": "policy.risk.score",         "xomPath": "com.insurance.xom.RiskAssessment/riskScore",        "value": "72"              },
- *     { "bomPath": "policy.claim.status",       "xomPath": "com.insurance.xom.Claim/claimStatus",               "value": "PENDING"         }
+ *     { "bomPath": "policy.claim.status",       "xomPath": "com.insurance.xom.Claim/claimStatus",               "value": "PENDING"         },
+ *     { "bomPath": "policy.loanAmount.value",   "xomPath": "com.insurance.xom.Policy/loanAmount",               "value": "$250,000.00"     },
+ *     { "bomPath": "policy.mortgageExpiry",     "xomPath": "com.insurance.xom.Policy/mortgageExpiry",            "value": "2030-06-30"      }
  *   ]
  * }
  */
@@ -182,15 +192,17 @@ app.post('/transform', (req: Request, res: Response) => {
     'coverageEndDate',
     'riskScore',
     'claimStatus',
+    'loanAmount',
+    'mortgageExpiry',
   ];
 
-  // Validate that all 10 BOM input fields are present
+  // Validate that all 12 BOM input fields are present
   const missing = REQUIRED.filter((f) => req.body[f] === undefined || req.body[f] === null);
   if (missing.length > 0) {
     res.status(400).json({
       error: 'Missing required insurance BOM fields',
       missing,
-      hint: 'Supply all 10 fields: ' + REQUIRED.join(', '),
+      hint: 'Supply all 12 fields: ' + REQUIRED.join(', '),
     });
     return;
   }
