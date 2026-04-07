@@ -1,3 +1,11 @@
+/**
+ * Insurance BOM → XOM Path Mapper
+ *
+ * Accepts JSON with insurance BOM fields, transforms them via XSLT,
+ * and returns BOM→XOM path mappings with (optionally transformed) values.
+ *
+ * @author FLOWTEAM
+ */
 import express, { Request, Response } from 'express';
 import fs from 'fs';
 import path from 'path';
@@ -5,7 +13,7 @@ import { fileURLToPath } from 'url';
 import { xsltProcess, xmlParse } from 'xslt-processor';
 
 // ---------------------------------------------------------------------------
-// Paths
+// Paths & XSLT initialisation
 // ---------------------------------------------------------------------------
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -17,11 +25,12 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const XSLT_PATH =
   process.env.XSLT_PATH ?? path.resolve(__dirname, '..', 'transform.xslt');
 
-// Load & parse the stylesheet once at startup so every request is fast.
 if (!fs.existsSync(XSLT_PATH)) {
   console.error(`XSLT file not found at: ${XSLT_PATH}`);
   process.exit(1);
 }
+
+// Parse the stylesheet once at startup so every request is fast.
 const xsltDoc = xmlParse(fs.readFileSync(XSLT_PATH, 'utf-8'));
 console.log(`XSLT loaded from: ${XSLT_PATH}`);
 
@@ -73,7 +82,7 @@ interface TransformResponse {
 }
 
 // ---------------------------------------------------------------------------
-// Required BOM fields (defined once, reused for validation)
+// Required BOM fields (defined once, reused for validation & XML generation)
 // ---------------------------------------------------------------------------
 const REQUIRED_FIELDS: ReadonlyArray<keyof InsuranceBomInput> = [
   'policyNumber',
@@ -94,7 +103,7 @@ const REQUIRED_FIELDS: ReadonlyArray<keyof InsuranceBomInput> = [
 // ---------------------------------------------------------------------------
 
 /** XML special-character escape map. */
-const XML_ESCAPE_MAP: Record<string, string> = {
+const XML_ESCAPE_MAP: Readonly<Record<string, string>> = {
   '&': '&amp;',
   '<': '&lt;',
   '>': '&gt;',
@@ -102,9 +111,7 @@ const XML_ESCAPE_MAP: Record<string, string> = {
   "'": '&apos;',
 };
 
-/**
- * Escape special XML characters in a string value.
- */
+/** Escape special XML characters in a string value. */
 function escXml(v: unknown): string {
   return String(v ?? '').replace(/[&<>"']/g, (ch) => XML_ESCAPE_MAP[ch]);
 }
@@ -116,13 +123,13 @@ function escXml(v: unknown): string {
  * fully-qualified XOM paths in the output.
  */
 function buildInputXml(body: InsuranceBomInput): string {
-  const el = (tag: keyof InsuranceBomInput) =>
+  const toElement = (tag: keyof InsuranceBomInput) =>
     `  <${tag}>${escXml(body[tag])}</${tag}>`;
 
   return [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<policy>',
-    ...REQUIRED_FIELDS.map(el),
+    ...REQUIRED_FIELDS.map(toElement),
     '</policy>',
   ].join('\n');
 }
@@ -139,7 +146,7 @@ function extractXomFields(xml: string): XomField[] {
   const fields: XomField[] = [];
   let match: RegExpExecArray | null;
 
-  // Reset lastIndex in case the shared regex was used before
+  // Reset lastIndex – the shared regex retains state between calls
   FIELD_PATTERN.lastIndex = 0;
 
   while ((match = FIELD_PATTERN.exec(xml)) !== null) {
@@ -197,7 +204,7 @@ app.use(express.json());
  * }
  */
 app.post('/transform', (req: Request, res: Response) => {
-  // Validate that all BOM input fields are present
+  // Validate that all required BOM input fields are present
   const missing = REQUIRED_FIELDS.filter((f) => req.body[f] == null);
   if (missing.length > 0) {
     res.status(400).json({
@@ -220,7 +227,7 @@ app.post('/transform', (req: Request, res: Response) => {
     const fields = extractXomFields(resultXml);
 
     if (fields.length === 0) {
-      // Transformation succeeded but produced no field elements – surface the raw XML for debugging
+      // Transformation succeeded but produced no field elements – surface raw XML for debugging
       res.status(500).json({
         error: 'XSLT produced no field mappings',
         rawOutput: resultXml,
