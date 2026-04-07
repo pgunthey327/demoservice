@@ -39,83 +39,83 @@
   <xsl:template match="/policy">
     <xomMappings>
 
-      <!-- ── Pass-through fields ─────────────────────────────── -->
+      <!-- ── 1. Pass-through fields ──────────────────────────── -->
 
-      <!-- 1. Policy Number -->
+      <!-- Policy Number -->
       <field
         bomPath="policy.policyNumber"
         xomPath="com.insurance.xom.Policy/policyNumber">
         <xsl:value-of select="policyNumber"/>
       </field>
 
-      <!-- 3. Date of Birth (ISO 8601: YYYY-MM-DD) -->
+      <!-- Date of Birth (ISO 8601: YYYY-MM-DD) -->
       <field
         bomPath="policy.holder.dateOfBirth"
         xomPath="com.insurance.xom.PolicyHolder/dateOfBirth">
         <xsl:value-of select="dateOfBirth"/>
       </field>
 
-      <!-- 7. Coverage Start Date → Effective Date -->
+      <!-- Coverage Start Date → Effective Date -->
       <field
         bomPath="policy.coverage.startDate"
         xomPath="com.insurance.xom.Coverage/effectiveDate">
         <xsl:value-of select="coverageStartDate"/>
       </field>
 
-      <!-- 8. Coverage End Date → Termination Date -->
+      <!-- Coverage End Date → Termination Date -->
       <field
         bomPath="policy.coverage.endDate"
         xomPath="com.insurance.xom.Coverage/terminationDate">
         <xsl:value-of select="coverageEndDate"/>
       </field>
 
-      <!-- 9. Risk Score (integer 0-100) -->
+      <!-- Risk Score (integer 0-100) -->
       <field
         bomPath="policy.risk.score"
         xomPath="com.insurance.xom.RiskAssessment/riskScore">
         <xsl:value-of select="number(riskScore)"/>
       </field>
 
-      <!-- ── UPPERCASED fields (canonical storage) ───────────── -->
+      <!-- ── 2. UPPERCASED fields (canonical storage) ────────── -->
 
-      <!-- 2. Holder Name -->
+      <!-- Holder Name -->
       <field
         bomPath="policy.holder.name"
         xomPath="com.insurance.xom.PolicyHolder/holderName">
         <xsl:value-of select="translate(holderName, $lower, $upper)"/>
       </field>
 
-      <!-- 4. Coverage Type (e.g. auto → AUTO) -->
+      <!-- Coverage Type (e.g. auto → AUTO) -->
       <field
         bomPath="policy.coverage.type"
         xomPath="com.insurance.xom.Coverage/coverageType">
         <xsl:value-of select="translate(coverageType, $lower, $upper)"/>
       </field>
 
-      <!-- 10. Claim Status (e.g. pending → PENDING) -->
+      <!-- Claim Status (e.g. pending → PENDING) -->
       <field
         bomPath="policy.claim.status"
         xomPath="com.insurance.xom.Claim/claimStatus">
         <xsl:value-of select="translate(claimStatus, $lower, $upper)"/>
       </field>
 
-      <!-- ── Currency-formatted fields ($#,##0.00) ───────────── -->
+      <!-- ── 3. Currency-formatted fields ($#,##0.00) ────────── -->
 
-      <!-- 5. Premium Amount -->
+      <!-- Premium Amount -->
       <field
         bomPath="policy.coverage.premium"
         xomPath="com.insurance.xom.Coverage/premiumAmount">
         <xsl:value-of select="concat('$', format-number(number(premiumAmount), $currencyFormat))"/>
       </field>
 
-      <!-- 6. Deductible Amount -->
+      <!-- Deductible Amount -->
       <field
         bomPath="policy.coverage.deductible"
         xomPath="com.insurance.xom.Coverage/deductibleAmount">
         <xsl:value-of select="concat('$', format-number(number(deductibleAmount), $currencyFormat))"/>
       </field>
 
-      <!-- 11. SCBP Premium Amount (XPath-style path) -->
+      <!-- SCBP Premium Amount (XPath-style path) -->
       <field
         bomPath="/policy/premiumAmount/value"
         xomPath="/policy/premiumAmount/value">
