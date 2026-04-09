@@ -6,6 +6,8 @@
     ============================================================
     Insurance BOM-to-XOM Path Transformation  (XSLT 1.0)
     ============================================================
+    Author: TEAM PRIMUS
+
     Converts insurance BOM (Business Object Model) field paths
     to their corresponding XOM (Execution Object Model) Java paths.
 
@@ -13,10 +15,10 @@
     XOM paths are the fully-qualified Java class/attribute paths used
     at rule execution time by IBM ODM (or equivalent engines).
 
-    Transformation rules applied per field:
-      - Pass-through : value copied as-is
-      - UPPERCASED   : value converted to upper case
-      - Currency     : numeric value formatted as $#,##0.00
+    Transformation categories:
+      1. Pass-through : value copied as-is
+      2. UPPERCASED   : value converted to upper case
+      3. Currency     : numeric value formatted as $#,##0.00
 
     Input XML root element : <policy>
     Output XML root element: <xomMappings>
@@ -33,6 +35,9 @@
   <!-- Currency format pattern reused by all monetary fields -->
   <xsl:variable name="currencyFormat" select="'#,##0.00'"/>
 
+  <!-- XOM package prefix reused across most field mappings -->
+  <xsl:variable name="xomBase" select="'com.insurance.xom.'"/>
+
   <!-- ============================================================
        Main template – matches the <policy> root element
        ============================================================ -->
@@ -44,35 +49,36 @@
       <!-- Policy Number -->
       <field
         bomPath="policy.policyNumber"
-        xomPath="com.insurance.xom.Policy/policyNumber">
+        xomPath="{$xomBase}Policy/policyNumber">
+        <xsl:attribute name="xomPath"><xsl:value-of select="concat($xomBase, 'Policy/policyNumber')"/></xsl:attribute>
         <xsl:value-of select="policyNumber"/>
       </field>
 
       <!-- Date of Birth (ISO 8601: YYYY-MM-DD) -->
       <field
-        bomPath="policy.holder.dateOfBirth"
-        xomPath="com.insurance.xom.PolicyHolder/dateOfBirth">
+        bomPath="policy.holder.dateOfBirth">
+        <xsl:attribute name="xomPath"><xsl:value-of select="concat($xomBase, 'PolicyHolder/dateOfBirth')"/></xsl:attribute>
         <xsl:value-of select="dateOfBirth"/>
       </field>
 
       <!-- Coverage Start Date → Effective Date -->
       <field
-        bomPath="policy.coverage.startDate"
-        xomPath="com.insurance.xom.Coverage/effectiveDate">
+        bomPath="policy.coverage.startDate">
+        <xsl:attribute name="xomPath"><xsl:value-of select="concat($xomBase, 'Coverage/effectiveDate')"/></xsl:attribute>
         <xsl:value-of select="coverageStartDate"/>
       </field>
 
       <!-- Coverage End Date → Termination Date -->
       <field
-        bomPath="policy.coverage.endDate"
-        xomPath="com.insurance.xom.Coverage/terminationDate">
+        bomPath="policy.coverage.endDate">
+        <xsl:attribute name="xomPath"><xsl:value-of select="concat($xomBase, 'Coverage/terminationDate')"/></xsl:attribute>
         <xsl:value-of select="coverageEndDate"/>
       </field>
 
       <!-- Risk Score (integer 0-100) -->
       <field
-        bomPath="policy.risk.score"
-        xomPath="com.insurance.xom.RiskAssessment/riskScore">
+        bomPath="policy.risk.score">
+        <xsl:attribute name="xomPath"><xsl:value-of select="concat($xomBase, 'RiskAssessment/riskScore')"/></xsl:attribute>
         <xsl:value-of select="number(riskScore)"/>
       </field>
 
@@ -80,22 +86,22 @@
 
       <!-- Holder Name -->
       <field
-        bomPath="policy.holder.name"
-        xomPath="com.insurance.xom.PolicyHolder/holderName">
+        bomPath="policy.holder.name">
+        <xsl:attribute name="xomPath"><xsl:value-of select="concat($xomBase, 'PolicyHolder/holderName')"/></xsl:attribute>
         <xsl:value-of select="translate(holderName, $lower, $upper)"/>
       </field>
 
       <!-- Coverage Type (e.g. auto → AUTO) -->
       <field
-        bomPath="policy.coverage.type"
-        xomPath="com.insurance.xom.Coverage/coverageType">
+        bomPath="policy.coverage.type">
+        <xsl:attribute name="xomPath"><xsl:value-of select="concat($xomBase, 'Coverage/coverageType')"/></xsl:attribute>
         <xsl:value-of select="translate(coverageType, $lower, $upper)"/>
       </field>
 
       <!-- Claim Status (e.g. pending → PENDING) -->
       <field
-        bomPath="policy.claim.status"
-        xomPath="com.insurance.xom.Claim/claimStatus">
+        bomPath="policy.claim.status">
+        <xsl:attribute name="xomPath"><xsl:value-of select="concat($xomBase, 'Claim/claimStatus')"/></xsl:attribute>
         <xsl:value-of select="translate(claimStatus, $lower, $upper)"/>
       </field>
 
@@ -103,15 +109,15 @@
 
       <!-- Premium Amount -->
       <field
-        bomPath="policy.coverage.premium"
-        xomPath="com.insurance.xom.Coverage/premiumAmount">
+        bomPath="policy.coverage.premium">
+        <xsl:attribute name="xomPath"><xsl:value-of select="concat($xomBase, 'Coverage/premiumAmount')"/></xsl:attribute>
         <xsl:value-of select="concat('$', format-number(number(premiumAmount), $currencyFormat))"/>
       </field>
 
       <!-- Deductible Amount -->
       <field
-        bomPath="policy.coverage.deductible"
-        xomPath="com.insurance.xom.Coverage/deductibleAmount">
+        bomPath="policy.coverage.deductible">
+        <xsl:attribute name="xomPath"><xsl:value-of select="concat($xomBase, 'Coverage/deductibleAmount')"/></xsl:attribute>
         <xsl:value-of select="concat('$', format-number(number(deductibleAmount), $currencyFormat))"/>
       </field>
 
