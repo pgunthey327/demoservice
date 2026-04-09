@@ -111,9 +111,12 @@ const XML_ESCAPE_MAP: Readonly<Record<string, string>> = {
   "'": '&apos;',
 };
 
+/** Pre-compiled regex for characters that must be escaped in XML content. */
+const XML_ESCAPE_RE = /[&<>"']/g;
+
 /** Escape special XML characters in a string value. */
 function escXml(v: unknown): string {
-  return String(v ?? '').replace(/[&<>"']/g, (ch) => XML_ESCAPE_MAP[ch]);
+  return String(v ?? '').replace(XML_ESCAPE_RE, (ch) => XML_ESCAPE_MAP[ch]);
 }
 
 /**
@@ -123,15 +126,16 @@ function escXml(v: unknown): string {
  * fully-qualified XOM paths in the output.
  */
 function buildInputXml(body: InsuranceBomInput): string {
-  const toElement = (tag: keyof InsuranceBomInput) =>
-    `  <${tag}>${escXml(body[tag])}</${tag}>`;
+  const elements = REQUIRED_FIELDS
+    .map((tag) => `  <${tag}>${escXml(body[tag])}</${tag}>`)
+    .join('\n');
 
-  return [
-    '<?xml version="1.0" encoding="UTF-8"?>',
-    '<policy>',
-    ...REQUIRED_FIELDS.map(toElement),
-    '</policy>',
-  ].join('\n');
+  return (
+    '<?xml version="1.0" encoding="UTF-8"?>\n' +
+    '<policy>\n' +
+    elements + '\n' +
+    '</policy>'
+  );
 }
 
 /** Regex to extract <field bomPath="…" xomPath="…">value</field> elements. */
@@ -146,7 +150,7 @@ function extractXomFields(xml: string): XomField[] {
   const fields: XomField[] = [];
   let match: RegExpExecArray | null;
 
-  // Reset lastIndex – the shared regex retains state between calls
+  // Reset lastIndex – the shared regex retains state between calls.
   FIELD_PATTERN.lastIndex = 0;
 
   while ((match = FIELD_PATTERN.exec(xml)) !== null) {
@@ -204,30 +208,30 @@ app.use(express.json());
  * }
  */
 app.post('/transform', (req: Request, res: Response) => {
-  // Validate that all required BOM input fields are present
+  // Validate that all required BOM input fields are present.
   const missing = REQUIRED_FIELDS.filter((f) => req.body[f] == null);
   if (missing.length > 0) {
     res.status(400).json({
       error: 'Missing required insurance BOM fields',
       missing,
-      hint: 'Supply all fields: ' + REQUIRED_FIELDS.join(', '),
+      hint: `Supply all fields: ${REQUIRED_FIELDS.join(', ')}`,
     });
     return;
   }
 
   try {
-    // 1. Build input XML from BOM JSON fields
+    // 1. Build input XML from BOM JSON fields.
     const inputXml = buildInputXml(req.body as InsuranceBomInput);
     const inputDoc = xmlParse(inputXml);
 
-    // 2. Run the BOM→XOM XSLT transformation
+    // 2. Run the BOM→XOM XSLT transformation.
     const resultXml: string = xsltProcess(inputDoc, xsltDoc);
 
-    // 3. Parse <field> elements from the <xomMappings> output
+    // 3. Parse <field> elements from the <xomMappings> output.
     const fields = extractXomFields(resultXml);
 
     if (fields.length === 0) {
-      // Transformation succeeded but produced no field elements – surface raw XML for debugging
+      // Transformation succeeded but produced no field elements – surface raw XML for debugging.
       res.status(500).json({
         error: 'XSLT produced no field mappings',
         rawOutput: resultXml,
