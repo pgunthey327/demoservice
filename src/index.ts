@@ -30,32 +30,34 @@ console.log(`XSLT loaded from: ${XSLT_PATH}`);
 // ---------------------------------------------------------------------------
 
 /**
- * The 10 insurance input fields (BOM paths expressed as flat JSON keys).
+ * The 11 insurance input fields (BOM paths expressed as flat JSON keys).
  *
- * BOM Path                  → JSON key
- * ─────────────────────────────────────
- * policy.policyNumber       → policyNumber
- * policy.holder.name        → holderName
- * policy.holder.dateOfBirth → dateOfBirth
- * policy.coverage.type      → coverageType
- * policy.coverage.premium   → premiumAmount
- * policy.coverage.deductible→ deductibleAmount
- * policy.coverage.startDate → coverageStartDate
- * policy.coverage.endDate   → coverageEndDate
- * policy.risk.score         → riskScore
- * policy.claim.status       → claimStatus
+ * BOM Path                          → JSON key
+ * ─────────────────────────────────────────────
+ * policy.policyNumber               → policyNumber
+ * policy.holder.name                → holderName
+ * policy.holder.dateOfBirth         → dateOfBirth
+ * policy.coverage.type              → coverageType
+ * policy.coverage.premium           → premiumAmount
+ * policy.coverage.deductible        → deductibleAmount
+ * policy.coverage.startDate         → coverageStartDate
+ * policy.coverage.endDate           → coverageEndDate
+ * policy.risk.score                 → riskScore
+ * policy.claim.status               → claimStatus
+ * policy.premiumAmount.value        → premiumAmountValue
  */
 interface InsuranceBomInput {
-  policyNumber: string;       // e.g. "POL-2024-001234"
-  holderName: string;         // e.g. "Jane Doe"
-  dateOfBirth: string;        // e.g. "1985-06-15"
-  coverageType: string;       // e.g. "auto" | "home" | "life" | "health"
-  premiumAmount: string;      // e.g. "1250.00"
-  deductibleAmount: string;   // e.g. "500.00"
-  coverageStartDate: string;  // e.g. "2024-01-01"
-  coverageEndDate: string;    // e.g. "2024-12-31"
-  riskScore: string;          // e.g. "72"  (0-100)
-  claimStatus: string;        // e.g. "pending" | "approved" | "denied" | "closed"
+  policyNumber: string;           // e.g. "POL-2024-001234"
+  holderName: string;             // e.g. "Jane Doe"
+  dateOfBirth: string;            // e.g. "1985-06-15"
+  coverageType: string;           // e.g. "auto" | "home" | "life" | "health"
+  premiumAmount: string;          // e.g. "1250.00"
+  deductibleAmount: string;       // e.g. "500.00"
+  coverageStartDate: string;      // e.g. "2024-01-01"
+  coverageEndDate: string;        // e.g. "2024-12-31"
+  riskScore: string;              // e.g. "72"  (0-100)
+  claimStatus: string;            // e.g. "pending" | "approved" | "denied" | "closed"
+  premiumAmountValue: string;     // e.g. "1250.00" – SCBP BOM /policy/premiumAmount/value
 }
 
 /** One entry in the XOM mapping output array. */
@@ -87,7 +89,7 @@ function escXml(v: unknown): string {
 }
 
 /**
- * Build the input XML <policy> document from the 10 BOM JSON fields.
+ * Build the input XML <policy> document from the 11 BOM JSON fields.
  *
  * The element names here are the flat JSON keys; the XSLT maps them to
  * fully-qualified XOM paths in the output.
@@ -105,6 +107,7 @@ function buildInputXml(body: InsuranceBomInput): string {
   <coverageEndDate>${escXml(body.coverageEndDate)}</coverageEndDate>
   <riskScore>${escXml(body.riskScore)}</riskScore>
   <claimStatus>${escXml(body.claimStatus)}</claimStatus>
+  <premiumAmountValue>${escXml(body.premiumAmountValue)}</premiumAmountValue>
 </policy>`;
 }
 
@@ -137,7 +140,7 @@ app.use(express.json());
 /**
  * POST /transform
  *
- * Accepts a JSON body with 10 insurance BOM fields and returns a JSON array
+ * Accepts a JSON body with 11 insurance BOM fields and returns a JSON array
  * of BOM→XOM path mappings with their (optionally transformed) values.
  *
  * ── Request body example ──────────────────────────────────────────────────
@@ -151,7 +154,8 @@ app.use(express.json());
  *   "coverageStartDate":"2024-01-01",
  *   "coverageEndDate": "2024-12-31",
  *   "riskScore":       "72",
- *   "claimStatus":     "pending"
+ *   "claimStatus":     "pending",
+ *   "premiumAmountValue":"1250.00"
  * }
  *
  * ── Response body example ────────────────────────────────────────────────
@@ -166,7 +170,8 @@ app.use(express.json());
  *     { "bomPath": "policy.coverage.startDate", "xomPath": "com.insurance.xom.Coverage/effectiveDate",          "value": "2024-01-01"      },
  *     { "bomPath": "policy.coverage.endDate",   "xomPath": "com.insurance.xom.Coverage/terminationDate",        "value": "2024-12-31"      },
  *     { "bomPath": "policy.risk.score",         "xomPath": "com.insurance.xom.RiskAssessment/riskScore",        "value": "72"              },
- *     { "bomPath": "policy.claim.status",       "xomPath": "com.insurance.xom.Claim/claimStatus",               "value": "PENDING"         }
+ *     { "bomPath": "policy.claim.status",       "xomPath": "com.insurance.xom.Claim/claimStatus",               "value": "PENDING"         },
+ *     { "bomPath": "policy.premiumAmount.value","xomPath": "com.insurance.xom.Policy/premiumAmount/value",      "value": "$1,250.00"       }
  *   ]
  * }
  */
@@ -182,15 +187,16 @@ app.post('/transform', (req: Request, res: Response) => {
     'coverageEndDate',
     'riskScore',
     'claimStatus',
+    'premiumAmountValue',
   ];
 
-  // Validate that all 10 BOM input fields are present
+  // Validate that all 11 BOM input fields are present
   const missing = REQUIRED.filter((f) => req.body[f] === undefined || req.body[f] === null);
   if (missing.length > 0) {
     res.status(400).json({
       error: 'Missing required insurance BOM fields',
       missing,
-      hint: 'Supply all 10 fields: ' + REQUIRED.join(', '),
+      hint: 'Supply all 11 fields: ' + REQUIRED.join(', '),
     });
     return;
   }
